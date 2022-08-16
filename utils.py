@@ -19,19 +19,19 @@ FEATURES = {1: 'mean',
             8: 'max_',
             9: 'entropy'}
 
-def load_pngs_dict(path):
+def load_pngs_dict(img_path, mask_path):
     '''
-    use path and create dict of id and images
+    create dict of id with image and its pothole mask
     '''
     imgs_ids = {}
     
-    for file in os.listdir(path):
+    for file in os.listdir(img_path):
         if file.endswith('.png'):
-            img_file = os.path.join(path, file)
             id = file.split('.')[0]
 
-            img = cv2.imread(img_file)
-            imgs_ids[id] = img
+            img = cv2.imread(os.path.join(img_path, file))
+            mask = cv2.imread(os.path.join(mask_path, id+'_mask.png'))
+            imgs_ids[id] = (img, mask)
 
     return imgs_ids
 
@@ -48,45 +48,7 @@ def get_crop_image(img, h, w):
 
     return img
 
-def get_tiles_by_grid(img, r=5, c=10):
-    '''
-    Parameters
-    ----------
-    img: shape=(h,w,ch), dtype=np.uint8
-        input image
-    r: int
-        number of rows in grid
-    c: int
-        number of columns in grid
-
-    Returns
-    -------
-    Cropped image, shape = (h,w,ch)
-    Dict of tiles generated, {id: tile}
-    Image masked with tiles and ids, shape = (h,w,ch)
-    '''
-
-    img = get_crop_image(img, r, c)
-    height, width = img.shape[:2]
-
-    tile_w = int(width/c)
-    tile_h = int(height/r)
-
-    mask = img.copy()
-    id = 0
-    tiles = {}
-
-    for y in range(0, height, tile_h):
-        for x in range(0, width, tile_w):
-            cv2.rectangle(mask, pt1=(x,y), pt2=(x+tile_w-1,y+tile_h-1), color=COLOR, thickness=1)
-            cv2.putText(mask, str(id), (x,y+tile_h), FONT, 1, COLOR, 3, cv2.LINE_AA)
-            tile = img[y:y+tile_h, x:x+tile_w]
-            tiles[id] = tile
-            id = id + 1
-
-    return img, tiles, mask
-
-def get_tiles_by_pixels(img, h=100, w=100):
+def get_labelled_tiles(img, mask, h=100, w=100):
     '''
     Parameters
     ----------
@@ -100,28 +62,48 @@ def get_tiles_by_pixels(img, h=100, w=100):
     Returns
     -------
     Cropped image, shape = (h,w,ch)
-    Dict of tiles generated, {id: tile}
-    Image masked with tiles and ids, shape = (h,w,ch)
+    Dict of tiles generated, {id: tile img}
+    Dict of labels, {tile id, 'label'}
+    Image masked with tiles, labels and ids, shape = (h,w,ch)
     '''
 
     img = get_crop_image(img, h, w)
+    mask = get_crop_image(mask, h, w)
+    grid = img.copy()
+
     height, width = img.shape[:2]
-    mask = img.copy()
 
     id = 0
     tiles = {}
+    labels = {}
+    threshold = int(h*w*0.6)
 
     for y in range(0, height, h):
         for x in range(0, width, w):
-            cv2.rectangle(mask, pt1=(x,y), pt2=(x+w-1,y+h-1), color=COLOR, thickness=1)
-            cv2.putText(mask, str(id), (x,y+h), FONT, 1, COLOR, 3, cv2.LINE_AA)
-            tile = img[y:y+h, x:x+w]
-            tiles[id] = tile
-            id = id + 1
+            m_tile = mask[y:y+h, x:x+w]
+            i_tile = img[y:y+h, x:x+w]
 
-    return img, tiles, mask
+            if np.count_nonzero(m_tile==0) >= threshold:
+                tiles[id] = i_tile
+                labels[id] = 'Pavement'
+            else:
+                tiles[id] = i_tile
+                labels[id] = 'Pothole'
+
+                # add a transparent rectangle on grid to indicate label
+                g_tile = grid[y:y+h, x:x+w]
+                white_rect = np.ones(g_tile.shape, dtype=np.uint8) * 255
+                res = cv2.addWeighted(g_tile, 0.5, white_rect, 0.5, 1.0)
+                grid[y:y+h, x:x+w] = res
+            
+            id = id + 1
+            cv2.rectangle(grid, pt1=(x,y), pt2=(x+w-1,y+h-1), color=COLOR, thickness=1)
+            cv2.putText(grid, str(id), (x,y+h), FONT, 1, COLOR, 1, cv2.LINE_AA)
+
+    return img, tiles, labels, grid
 
 def calc_glcm_features(img):
+    # returns {'name of feature', value}
     img = img[:,:,0]
 
     mean = fast_glcm_mean(img)
@@ -150,25 +132,33 @@ def display_glcm_features(glcm_features, id):
     plt.show()
 
 def get_avg_features(glcm_features):
+    # returns {'name of feature', avg value}
     avg_features = {}
     for key in glcm_features:
         avg_features[key] = np.average(glcm_features[key])
     return avg_features
 
 def calc_avg_tile_features(tiles):
+    # for each tile, calc the glcm features and then get avg values
+    # returns tile id, dict of {'name of feature', avg value}
     avg_tile_features = {}
     for id in tiles:
         glcm_features = calc_glcm_features(tiles[id])
         avg_tile_features[id] = get_avg_features(glcm_features)
     return avg_tile_features
 
-def print_feature_graph(avg_tile_features):
+def visualize_labelled_data(avg_tile_features, tile_labels):
     fig = plt.figure(figsize=(22, 18))
+    colors = ('black', 'red')
+    labels = ('Pavement', 'Pothole')
 
     for key in FEATURES:
-        ax = plt.subplot(3,3,key)
+        ax = fig.add_subplot(3,3,key)
         ax.set_title(FEATURES[key])
-        x = [x for x in avg_tile_features]
-        y = [avg_tile_features[x][FEATURES[key]] for x in avg_tile_features]
-        plt.scatter(x, y)
+
+        for i in range(len(labels)):
+            x = [id for id in tile_labels if tile_labels[id]==labels[i]]
+            y = [avg_tile_features[id][FEATURES[key]] for id in x]
+            ax.scatter(x, y, c=colors[i], edgecolors='none', s=30, label=labels[i])
+        plt.legend()
     plt.show()
