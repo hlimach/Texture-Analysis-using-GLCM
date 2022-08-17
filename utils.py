@@ -162,3 +162,19 @@ def visualize_labelled_data(avg_tile_features, tile_labels):
             ax.scatter(x, y, c=colors[i], edgecolors='none', s=30, label=labels[i])
         plt.legend()
     plt.show()
+
+def display_histogram(avg_tile_features, tile_labels, bin_count=10):
+    fig = plt.figure(figsize=(22, 18))
+    colors = ('black', 'red')
+    labels = ('Pavement', 'Pothole')
+
+    for key in FEATURES:
+        ax = fig.add_subplot(3,3,key)
+        ax.set_title(FEATURES[key])
+
+        y0 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[0]]
+        y1 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[1]]
+
+        plt.hist([y0,y1], bin_count, color=colors, label=labels)
+        plt.legend()
+    plt.show()
