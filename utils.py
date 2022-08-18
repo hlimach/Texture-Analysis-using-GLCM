@@ -1,6 +1,7 @@
 import os
 import cv2
 import numpy as np
+import bisect
 
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import figure
@@ -96,9 +97,9 @@ def get_labelled_tiles(img, mask, h=100, w=100):
                 res = cv2.addWeighted(g_tile, 0.5, white_rect, 0.5, 1.0)
                 grid[y:y+h, x:x+w] = res
             
-            id = id + 1
             cv2.rectangle(grid, pt1=(x,y), pt2=(x+w-1,y+h-1), color=COLOR, thickness=1)
             cv2.putText(grid, str(id), (x,y+h), FONT, 1, COLOR, 1, cv2.LINE_AA)
+            id = id + 1
 
     return img, tiles, labels, grid
 
@@ -175,6 +176,54 @@ def display_histogram(avg_tile_features, tile_labels, bin_count=10):
         y0 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[0]]
         y1 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[1]]
 
-        plt.hist([y0,y1], bin_count, color=colors, label=labels)
+        n, bins, patches = plt.hist([y0,y1], bin_count, color=colors, label=labels)
+        plt.xticks(bins)
         plt.legend()
+    plt.show()
+
+def analyze_histogram(img, tiles, tile_labels, avg_tile_features, bin_count=10):
+    fig = plt.figure(figsize=(22, 90))
+    colors = ('black', 'red')
+    labels = ('Pavement', 'Pothole')
+
+    for key in FEATURES:
+        # add histogram with titled bins
+        ax = fig.add_subplot(9,2,(key*2)-1)
+        ax.set_title(FEATURES[key])
+
+        y0 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[0]]
+        y1 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[1]]
+
+        n, bins, patches = ax.hist([y0,y1], bin_count, color=colors, label=labels)
+        additive = (bins[2] - bins[1]) / 2
+        ticks = [bins[i]+additive for i in range(bin_count)]
+        ticklabels = ['bin '+str(i) for i in range(bin_count)]
+
+        plt.xticks(ticks, ticklabels, rotation=90)
+        plt.legend()
+
+        # add image with histogram labelled tiles
+        grid = img.copy()
+        height, width = grid.shape[:2]
+        h, w = tiles[1].shape[:2]
+        id = 0
+
+        for y in range(0, height, h):
+            for x in range(0, width, w):
+                # find out which bin the tile belongs to
+                bin_num = bisect.bisect(bins, avg_tile_features[id][FEATURES[key]]) - 1
+
+                #if it is pavement, draw black rect and add black text, otherwise red
+                if tile_labels[id] == labels[0]:
+                    cv2.rectangle(grid, pt1=(x,y), pt2=(x+w-1,y+h-1), color=(0,0,0), thickness=1)
+                    cv2.putText(grid, str(bin_num), (x,y+h), FONT, 1, (0,0,0), 1, cv2.LINE_AA)
+                else:
+                    cv2.rectangle(grid, pt1=(x,y), pt2=(x+w-1,y+h-1), color=(0,0,255), thickness=1)
+                    cv2.putText(grid, str(bin_num), (x,y+h), FONT, 1, (0,0,255), 1, cv2.LINE_AA)
+                id = id + 1
+
+        ax = fig.add_subplot(9,2,key*2)
+        plt.imshow(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
+
+
     plt.show()
