@@ -182,25 +182,26 @@ def display_histogram(avg_tile_features, tile_labels, bin_count=10):
     plt.show()
 
 def analyze_histogram(img, tiles, tile_labels, avg_tile_features, bin_count=10):
-    fig = plt.figure(figsize=(22, 90))
     colors = ('black', 'red')
     labels = ('Pavement', 'Pothole')
 
     for key in FEATURES:
         # add histogram with titled bins
-        ax = fig.add_subplot(9,2,(key*2)-1)
-        ax.set_title(FEATURES[key])
+        fig = plt.figure(figsize=(22, 18))
+        a0, a1 = fig.subplots(2, 1, gridspec_kw={'height_ratios': [1, 4]})
 
         y0 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[0]]
         y1 = [avg_tile_features[id][FEATURES[key]] for id in tile_labels if tile_labels[id]==labels[1]]
 
-        n, bins, patches = ax.hist([y0,y1], bin_count, color=colors, label=labels)
+        n, bins, patches = a0.hist([y0,y1], bin_count, color=colors, label=labels)
         additive = (bins[2] - bins[1]) / 2
         ticks = [bins[i]+additive for i in range(bin_count)]
         ticklabels = ['bin '+str(i) for i in range(bin_count)]
 
-        plt.xticks(ticks, ticklabels, rotation=90)
-        plt.legend()
+        a0.set_title(FEATURES[key])
+        a0.set_xticks(ticks)
+        a0.set_xticklabels(ticklabels, rotation=90)
+        a0.legend()
 
         # add image with histogram labelled tiles
         grid = img.copy()
@@ -222,8 +223,7 @@ def analyze_histogram(img, tiles, tile_labels, avg_tile_features, bin_count=10):
                     cv2.putText(grid, str(bin_num), (x,y+h), FONT, 1, (0,0,255), 1, cv2.LINE_AA)
                 id = id + 1
 
-        ax = fig.add_subplot(9,2,key*2)
-        plt.imshow(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
-
+        a1.imshow(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
 
     plt.show()
+
