@@ -48,7 +48,7 @@ def get_labelled_tiles(img, mask, h=100, w=100):
     Returns
     -------
     Cropped image, shape = (h,w,ch)
-    Dict of tiles generated, {id: tile img}
+    Dict of tiles generated, {tile id: tile img}
     Dict of labels, {tile id, 'label'}
     Image masked with tiles, labels and ids, shape = (h,w,ch)
     '''

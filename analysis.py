@@ -91,7 +91,7 @@ def analyze_histogram(img, tiles, tile_labels, avg_tile_features, bin_count=10):
 # outputs histogram and image like above
 # only tiled parts are specified bins
 
-def analyze_feature_by_bin(feature, target_colored_bins, img, tiles, avg_tile_features, bin_count=10):
+def analyze_feature_by_bin(feature, target_colored_bins, img, key, tiles, avg_tile_features, bin_count=10):
     # add histogram with titled bins
     fig = plt.figure(figsize=(22, 18))
     a0, a1 = fig.subplots(2, 1, gridspec_kw={'height_ratios': [1, 4]})
@@ -128,7 +128,8 @@ def analyze_feature_by_bin(feature, target_colored_bins, img, tiles, avg_tile_fe
                 rgb = colors.to_rgb(target_colored_bins[bin_num])
                 bgr = (rgb[2]*255, rgb[1]*255, rgb[0]*255)
                 cv2.rectangle(grid, pt1=(x,y), pt2=(x+w-1,y+h-1), color=bgr, thickness=2)
-                cv2.putText(grid, str(bin_num), (x,y+h), FONT, 1, bgr, 2, cv2.LINE_AA)
+                # cv2.putText(grid, str(bin_num), (x,y+h), FONT, 1, bgr, 2, cv2.LINE_AA)
             id = id + 1
+    a1.set_title(key)
     a1.imshow(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
     plt.show()
